@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -25,6 +26,11 @@ import (
 
 // SimpleChaincode example simple Chaincode implementation
 type SimpleChaincode struct {
+}
+
+type customEvent struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
 }
 
 // ============================================================================================================================
@@ -81,7 +87,14 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 	value = args[1]
 	err = stub.PutState(name, []byte(value)) //write the variable into the chaincode state
 	if err != nil {
+
 		return nil, err
+	}
+	var event = customEvent{"createLoanApplication", "test "}
+	eventBytes, err1 := json.Marshal(&event)
+	err1 = stub.SetEvent("evtSender", eventBytes)
+	if err1 != nil {
+		fmt.Println("Could not set event", err1)
 	}
 	return nil, nil
 }
