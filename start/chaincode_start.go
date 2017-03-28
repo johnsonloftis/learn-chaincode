@@ -59,22 +59,30 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 
 // Invoke is our entry point to invoke a chaincode function
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	fmt.Println("invoke is running " + function)
-
-	// Handle different functions
-	if function == "init" {
-		return t.Init(stub, "init", args)
-	} else if function == "write" {
-
-		return t.write(stub, args)
+	switch function {
+	case "put":
+		return t.put(stub, args)
+	case "remove":
+		return t.remove(stub, args)
+	default:
+		return nil, errors.New("Unsupported operation")
 	}
-	fmt.Println("oopps!")
-	fmt.Println("invoke did not find func: " + function)
-
-	return nil, errors.New("Received unknown function invocation")
 }
 
-func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+func (t *SimpleChaincode) remove(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+	if len(args) < 1 {
+		return nil, errors.New("remove operation must include one argument, a key")
+	}
+	key := args[0]
+
+	err := stub.DelState(key)
+	if err != nil {
+		return nil, fmt.Errorf("remove operation failed. Error updating state: %s", err)
+	}
+	return nil, nil
+}
+
+func (t *SimpleChaincode) put(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var name, value string
 	var err error
 	fmt.Println("running write()")
@@ -119,13 +127,37 @@ func (t *SimpleChaincode) read(stub shim.ChaincodeStubInterface, args []string) 
 
 // Query is our entry point for queries
 func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	fmt.Println("query is running " + function)
-
-	// Handle different functions
-	if function == "read" { //read a variable
-		return t.read(stub, args)
+	if len(args) < 1 {
+		return nil, errors.New("get operation must include one argument, a key")
 	}
-	fmt.Println("query did not find func: " + function)
 
-	return nil, errors.New("Received unknown function query")
+	switch function {
+	case "read":
+		return t.read(stub, args)
+	case "keys":
+		keysIter, err := stub.RangeQueryState("", "")
+		if err != nil {
+			return nil, fmt.Errorf("keys operation failed. Error accessing state: %s", err)
+		}
+		defer keysIter.Close()
+
+		var keys []string
+		for keysIter.HasNext() {
+			key, _, iterErr := keysIter.Next()
+			if iterErr != nil {
+				return nil, fmt.Errorf("keys operation failed. Error accessing state: %s", err)
+			}
+			keys = append(keys, key)
+		}
+
+		jsonKeys, err := json.Marshal(keys)
+		if err != nil {
+			return nil, fmt.Errorf("keys operation failed. Error marshaling JSON: %s", err)
+		}
+
+		return jsonKeys, nil
+	default:
+		fmt.Println("query did not find func: " + function)
+		return nil, errors.New("Received unknown function query")
+	}
 }
