@@ -20,6 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
+	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 )
@@ -62,6 +67,14 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 	switch function {
 	case "put":
 		return t.put(stub, args)
+	case "web":
+		web, err := makeServiceCall()
+		if err != nil {
+			return nil, err
+		}
+
+		err = stub.PutState("rest_result", []byte(web))
+		return nil, err
 	case "remove":
 		return t.remove(stub, args)
 	default:
@@ -98,7 +111,7 @@ func (t *SimpleChaincode) put(stub shim.ChaincodeStubInterface, args []string) (
 
 		return nil, err
 	}
-	var event = customEvent{"createLoanApplication", "test "}
+	var event = customEvent{"testEvet", "test "}
 	eventBytes, err1 := json.Marshal(&event)
 	err1 = stub.SetEvent("evtSender", eventBytes)
 	if err1 != nil {
@@ -160,4 +173,20 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function strin
 		fmt.Println("query did not find func: " + function)
 		return nil, errors.New("Received unknown function query")
 	}
+}
+
+func makeServiceCall() (string, error) {
+	rand.Seed(time.Now().UnixNano())
+	n := rand.Intn(100)
+	rnd := strconv.Itoa(n)
+	s_url := "https://jsonplaceholder.typicode.com/posts/" + rnd
+	resp, err := http.Get(s_url)
+	defer resp.Body.Close()
+	if err != nil {
+		fmt.Println(err)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	s := string(b)
+	fmt.Printf(s)
+	return s, err
 }
